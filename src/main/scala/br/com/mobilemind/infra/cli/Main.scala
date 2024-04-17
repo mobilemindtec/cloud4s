@@ -31,6 +31,11 @@ case class Config(hosts: Seq[String] = Nil,
       case "ls" :: Nil => ls()
       case "df" :: Nil => df()
       case "getlogs" :: service :: Nil => getlogs(service)
+      case "stop" :: service :: Nil => stop(service)
+      case "rm" :: stack :: Nil => rm(stack)
+      case "stats" :: Nil => stats()
+      case "service" :: cmd  if cmd.nonEmpty => service(cmd)
+      case "docker" :: cmd  if cmd.nonEmpty => docker(cmd)
       case _ => println("""
         use options:
         > deploy <service name>
@@ -39,6 +44,11 @@ case class Config(hosts: Seq[String] = Nil,
         > ps
         > ps <service name>
         > ls
+        > stop <service name>
+        > rm <stack name>
+        > stats
+        > service <cmd args>
+        > docker <cmd args>
         > getlogs <service name>
       """.stripIndent())
   catch
@@ -101,8 +111,35 @@ object commands:
   def df()(using config: Config) =
     exec("df", config.hosts*)
 
+  def stats()(using config: Config) =
+    exec("docker stats --no-stream --no-trunc", config.hosts*)
+
   def ls()(using config: Config) =
     exec(clusterCmd("ls"), config.hostMain)
+
+  def service(args: Seq[String])(using config: Config) =
+    exec(s"docker service ${args.mkString(" ")}", config.hostMain)
+
+  def docker(args: Seq[String])(using config: Config) =
+    exec(s"docker ${args.mkString(" ")}", config.hosts*)
+
+  def rm(stack: String)(using config: Config) =
+    exec(clusterCmd(s"rm $stack"), config.hostMain)
+
+  def ps(service: String)(using config: Config) =
+    exec(clusterCmd(s"ps $service"), config.hostMain)
+
+  def stop(service: String)(using config: Config) =
+    exec(clusterCmd(s"stop ${service} | grep Running"), config.hostMain)
+
+  def update(stack: String, service: String)(using config: Config) =
+    exec(s"docker service update --force ${stack}_${service}", config.hostMain)
+
+  def prune()(using config: Config) =
+    exec("docker system prune -a", config.hosts*)
+
+  def deploy(service: String)(using config: Config) =
+    exec(clusterCmd(s"deploy $service"), config.hostMain)
 
   def getlogs(service: String)(using config: Config) =
     val analyzer: Seq[String] => Unit = {
@@ -131,18 +168,6 @@ object commands:
 
     }
     exec(clusterCmd(s"getlogs ${service}"), Some(analyzer), config.hostMain)
-
-  def ps(service: String)(using config: Config) =
-    exec(clusterCmd(s"ps ${service} | grep Running"), config.hostMain)
-
-  def update(stack: String, service: String)(using config: Config) =
-    exec(s"docker service update --force ${stack}_${service}", config.hostMain)
-
-  def prune()(using config: Config) =
-    exec("docker system prune -a", config.hosts*)
-
-  def deploy(service: String)(using config: Config) =
-    exec(clusterCmd(s"deploy $service"), config.hostMain)
 
   def exec(cmd: String, hosts: String*)(using Config): Unit =
     exec(cmd, None, hosts*)

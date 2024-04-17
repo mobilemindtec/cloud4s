@@ -15,6 +15,7 @@ val scala3Version = "3.4.1"
 
 lazy val nativeCompile = inputKey[Unit]("Create native image")
 lazy val nativeConfig = inputKey[Unit]("Create configs to native image")
+lazy val dist = inputKey[Unit]("run dist")
 
 lazy val root = project
   .in(file("."))
@@ -92,3 +93,4 @@ lazy val root = project
     oldStrategy(x)
 }
 
+nativeCompile := (nativeCompile dependsOn assembly).evaluated
