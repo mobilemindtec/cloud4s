@@ -26,7 +26,6 @@ native-image \
 
 # Compile Graalvm native image via SBT
 
-* sbt assembly
 * sbt compileNative
 
 # Configuration file
@@ -52,5 +51,10 @@ logs.path=$HOME/Downloads
   > ps
   > ps <service name>
   > ls
+  > stop <service name>
+  > rm <stack name>
+  > stats
+  > service <cmd args>
+  > docker <cmd args>
   > getlogs <service name>
 ```
