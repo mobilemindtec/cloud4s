@@ -89,9 +89,8 @@ case class Config(hosts: Seq[String] = Nil,
       case "stats" :: Nil => stats()
       case "service" :: cmd  if cmd.nonEmpty => service(cmd)
       case "docker" :: cmd  if cmd.nonEmpty => docker(cmd)
-      case "increment-version" :: service :: Nil  => incrementVersion(service)
-      case "aws" :: "start-build" :: projectName :: Nil =>
-        awsStartBuild(projectName)
+      case "codebuild" :: "increment" :: service :: Nil  =>
+        incrementVersion(service)
       case "codebuild" :: "start" :: projectName :: Nil =>
         awsStartBuild(projectName)
       case "codebuild" :: "status" :: projectName :: Nil =>
@@ -114,7 +113,7 @@ case class Config(hosts: Seq[String] = Nil,
         > service <cmd args>
         > docker <cmd args>
         > get-logs <service name>
-        > increment-version <service name>
+        > codebuild increment <service name>
         > codebuild start <project name>
         > codebuild status <project name>
         > codebuild info <project name>
