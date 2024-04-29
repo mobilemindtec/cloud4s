@@ -1,11 +1,8 @@
 import sbt.*
 import sbt.Keys.*
 
-import scala.collection.JavaConverters.*
 import java.io.File
-import java.nio.file.{FileSystems, Files}
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
 import scala.sys.process.*
 
 
@@ -29,6 +26,9 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ///"ch.qos.logback" % "logback-classic" % "1.5.3",
       "com.jcraft" % "jsch" % "0.1.55",
+      "org.typelevel" %% "cats-effect" % "3.5.4",
+      "com.monovore" %% "decline" % "2.4.1",
+      "com.monovore" %% "decline-effect" % "2.4.1",
       "org.scalameta" %% "munit" % "0.7.29" % Test
     ),
 
@@ -92,5 +92,7 @@ lazy val root = project
     val oldStrategy = (assembly / assemblyMergeStrategy).value
     oldStrategy(x)
 }
+
+Compile / run / fork := true
 
 nativeCompile := (nativeCompile dependsOn assembly).evaluated

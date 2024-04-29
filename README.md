@@ -39,6 +39,10 @@ ssh.username=cli-user
 ssh.port=22
 ssh.key.identity=$HOME/.ssh/cli_id_rsa
 logs.path=$HOME/Downloads
+codebuild.url=
+codebuild.username=
+codebuild.password=
+
 ```
 
 # Options
@@ -56,5 +60,11 @@ logs.path=$HOME/Downloads
   > stats
   > service <cmd args>
   > docker <cmd args>
-  > getlogs <service name>
+  > get-logs <service name>
+  > increment-version <service name>
+  > codebuild start <project name>
+  > codebuild status <project name>
+  > codebuild info <project name>
+  > codebuild list
+
 ```
