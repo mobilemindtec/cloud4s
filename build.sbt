@@ -8,7 +8,7 @@ import scala.sys.process.*
 
 
 
-val scala3Version = "3.4.1"
+val scala3Version = "3.5.0-RC1"
 
 lazy val nativeCompile = inputKey[Unit]("Create native image")
 lazy val nativeConfig = inputKey[Unit]("Create configs to native image")
@@ -17,7 +17,7 @@ lazy val dist = inputKey[Unit]("run dist")
 lazy val root = project
   .in(file("."))
   .settings(
-    name := "infra-cli",
+    name := "cloud",
     version := "0.1.0",
 
     scalaVersion := scala3Version,
@@ -29,7 +29,7 @@ lazy val root = project
       "org.typelevel" %% "cats-effect" % "3.5.4",
       "com.monovore" %% "decline" % "2.4.1",
       "com.monovore" %% "decline-effect" % "2.4.1",
-      "org.scalameta" %% "munit" % "0.7.29" % Test
+      "org.scalameta" %% "munit" % "1.0.0" % Test
     ),
 
     nativeConfig := {
@@ -94,5 +94,7 @@ lazy val root = project
 }
 
 Compile / run / fork := true
+
+ThisBuild / usePipelining := true
 
 nativeCompile := (nativeCompile dependsOn assembly).evaluated
