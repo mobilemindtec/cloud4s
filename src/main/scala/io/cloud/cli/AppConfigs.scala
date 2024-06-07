@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 import scala.io.Source
 
 object AppConfigs:
-
+  
   case class Config(hosts: Seq[String] = Nil,
                     hostMain: String = "",
                     domain: String = "",

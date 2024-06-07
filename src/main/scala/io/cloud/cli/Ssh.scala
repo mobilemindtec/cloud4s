@@ -13,7 +13,7 @@ object Ssh:
   def configure(): IO[Unit] =
     IO.blocking(JSch.setConfig("StrictHostKeyChecking", "no"))
 
-  def connectAndExec(host: String, cmd: String)(f: Seq[String] => IO[Unit]): Config ?=> IO[ExitCode] =
+  def connectAndExec(cmd: String, host: String)(f: Seq[String] => IOResult): IOResult =
     mkSession(host).use:
       session =>
         mkChannel(session, cmd).use:
@@ -23,8 +23,11 @@ object Ssh:
                 mkChannelSource(in).use:
                   source =>
                     channel.connect()
-                    f(source.getLines().toSeq) *>
-                      IO.unit.as(ExitCode(channel.getExitStatus))
+                    f(source.getLines().toSeq).map:
+                      code =>
+                        if code.code == 0
+                        then ExitCode(channel.getExitStatus)
+                        else code
         
 
   def mkSession(host: String): (cfg: Config) ?=> Resource[IO, Session] =

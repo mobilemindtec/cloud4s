@@ -1,27 +1,13 @@
 package io.cloud.cli
 
-import com.jcraft.jsch.{Channel, ChannelExec, JSch}
-
-import java.io.{File, FileNotFoundException}
-import scala.io.Source
-import scala.language.postfixOps
-import scala.sys.process.*
 import cats.effect.*
 import cats.implicits.*
 import com.monovore.decline.*
 import com.monovore.decline.effect.*
-
-import java.net.URI
-import java.net.http.HttpResponse.BodyHandlers
-import java.net.http.{HttpClient, HttpRequest, HttpResponse}
-import java.time.Duration
-import java.util.Base64
-import AppCmds.*
-import AppConfigs.Config
+import io.cloud.cli.AppCmds.*
 import io.cloud.cli.AppConfigs.Config
-
-// buildOpts: Opts[BuildImage] = Opts(build)
-
+import scala.language.postfixOps
+import scala.sys.process.*
 
 object DockerApp extends CommandIOApp(
   name = "cloud",
@@ -48,17 +34,39 @@ object DockerApp extends CommandIOApp(
           case cb: CodeBuildStatus => codebuild.status(cb)
           case cb: CodeBuildInfo => codebuild.info(cb)
           case cb: CodeBuildProjects => codebuild.projects(cb)
-          case _ => IO.unit.as(ExitCode.Error)
-
+          case StackDeploy(_) => docker.runOnMainHost(cmd)
+          case StackRemove(_) => docker.runOnMainHost(cmd)
+          case ServiceUpdate(_, _) => docker.runOnMainHost(cmd)
+          case ServicePS(_, _) => docker.runOnMainHost(cmd)
+          case ServiceStop(_) => docker.runOnMainHost(cmd)
+          case ServiceGetLogs(_) => docker.runOnMainHost(cmd, Some(docker.logAnalyzer))
+          case ServiceList() => docker.runOnMainHost(cmd)
+          case DockerPrune() => docker.runOnAllHosts(cmd)
+          case DockerPS() => docker.runOnAllHosts(cmd)
+          case DockerDF() => docker.runOnAllHosts(cmd)
+          case DockerStats() => docker.runOnAllHosts(cmd)
     yield red
-
 }
 // https://ben.kirw.in/decline/usage.html
 
 type IOResult = Config ?=> IO[ExitCode]
+type Analyzer = Seq[String] => IOResult
 
 def say(s: String): IO[Unit] =
-  IO.println(s"\n\n:: cloud ::> $s\n\n")
+  IO.blocking:
+    Console.print(Console.BLUE)
+    Console.print(s"\n:: cloud ::> \n\n$s\n\n")
+    Console.print(Console.RESET)
+
+def sayError(s: String): IO[ExitCode] =
+  IO.blocking:
+    Console.print(Console.RED)
+    Console.print(s"\n:: cloud ::> \n\n$s\n\n")
+    Console.print(Console.RESET)
+  *> IO.unit.as(ExitCode.Error)
+
+def sayOk(s: String): IO[ExitCode] =
+  say(s) *> IO.unit.as(ExitCode.Success)
 
 object codebuild:
 
@@ -87,93 +95,63 @@ object codebuild:
   private def getBuildId(cb: CodeBuildShowBuildId): IO[String] =
     IO.blocking:
       val filterCmd = "jq -r '.ids[0]'"
-      val buildId = ((cb.cmd #| filterCmd) !!)
-      buildId
+      (cb.cmd #| filterCmd) !!
 
   def start(cb : CodeBuildStart): IOResult =
-    IO.blocking((cb.cmd !!)).flatMap:
-      r => say(r) *> IO.unit.as(ExitCode.Success)
+    IO.blocking((cb.cmd !!)).flatMap(sayOk)
   
   def status(cb: CodeBuildStatus): IOResult =
     getBuildId(CodeBuildShowBuildId(cb.projectName))
       .flatMap:
         bid =>
           if bid.isEmpty
-          then say(s"build not found to project ${cb.projectName}")
+          then sayOk(s"build not found to project ${cb.projectName}")
           else
             IO.blocking:
               val cmd = cb.cmd.replace("__build_id__", bid)
               val filterCmd = "jq '.builds[].phases[] | select (.phaseType==\"BUILD\") | .phaseStatus'"
-              ((cmd #| filterCmd) !!)
+              (cmd #| filterCmd) !!
             .flatMap:
-              r => say(s"build status: ${if r == "null" then "BUILDING" else r}")
-      .flatMap:
-        _ => IO.unit.as(ExitCode.Success)
+              r => sayOk(s"build status: ${if r == "null" then "BUILDING" else r}")
 
   def info(cb: CodeBuildInfo): IOResult =
     getBuildId(CodeBuildShowBuildId(cb.projectName))
       .flatMap:
         bid =>
           if bid.isEmpty
-          then say(s"build not found to project ${cb.projectName}")
+          then sayOk(s"build not found to project ${cb.projectName}")
           else
             IO.blocking:
-              val cmd = cb.cmd.replace("__build_id__", bid)
-              (cmd !!)
+              cb.cmd.replace("__build_id__", bid) !!
             .flatMap:
-              r => say(s"build info:\n\n$r")
-      .flatMap:
-        _ => IO.unit.as(ExitCode.Success)
+              r => sayOk(s"build info:\n\n$r")
 
   def stop(cb: CodeBuildStop): IOResult =
     getBuildId(CodeBuildShowBuildId(cb.projectName))
       .flatMap:
         bid =>
           if bid.isEmpty
-          then say(s"build not found to project ${cb.projectName}")
+          then sayOk(s"build not found to project ${cb.projectName}")
           else
             IO.blocking:
-              val cmd = cb.cmd.replace("__build_id__", bid)
-              (cmd !!)
-            .flatMap:
-              r => say(r)
-      .flatMap:
-        _ => IO.unit.as(ExitCode.Success)
+              cb.cmd.replace("__build_id__", bid) !!
+            .flatMap(sayOk)
   
   def projects(cb: CodeBuildProjects): IOResult =
-    IO.blocking((cb.cmd !!)).flatMap:
-      r => say(s"projects:\n\n$r") *> IO.unit.as(ExitCode.Success)
+    IO.blocking((cb.cmd !!))
+      .flatMap:
+        r => sayOk(s"projects:\n\n$r")
       
-class docker:
+object docker:
 
-  type Analyzer = Seq[String] => IO[Unit]
-
-  def stackDeploy(opt: StackDeploy): IOResult =
+  def runOnMainHost(cmd: Cmd, analyzer: Option[Analyzer] = None): IOResult =
     val cfg = summon[Config]
-    runEach(cfg.hostMain, opt.cmd)
+    exec(cmd.cmd, None, cfg.hostMain)
 
-  def serviceUpdate(opt: ServiceUpdate): IOResult =
+  def runOnAllHosts(cmd: Cmd): IOResult =
     val cfg = summon[Config]
-    runEach(cfg.hostMain, opt.cmd)
+    exec(cmd.cmd, None, cfg.hosts*)
 
-  def servicePS(opt: ServicePS): IOResult =
-    val cfg = summon[Config]
-    runEach(cfg.hostMain, opt.cmd)
-
-  def serviceRemove(opt: ServiceRemove): IOResult =
-    val cfg = summon[Config]
-    runEach(cfg.hostMain, opt.cmd)
-
-  private def runEach(host: String, cmd: String, analyzer: Option[Analyzer] = None): IOResult =
-    Ssh.connectAndExec(host, cmd) {
-      lines =>
-        analyzer match
-          case Some(f) => f(lines)
-          case None =>
-            lines.foreach(println)
-            IO.unit
-    }
-        
   private def exec(cmd: String, analyzer: Option[Analyzer], hosts: String*): IOResult =
     Ssh.configure() *>
       hosts.map:
@@ -181,124 +159,38 @@ class docker:
       .parSequence
       .flatMap:
         codes =>
-          IO.pure {
+          IO.pure:
             codes.find(_ != ExitCode.Success)
               .getOrElse(ExitCode.Success)
-          }
 
-
-      
-
-  
-/*
-
-object commands:
-
-  private def clusterCmd(cmd: String) =
-    s"cd cluster && ./docker $cmd"
-
-  def ps()(using config: Config) =
-    exec("docker ps", config.hosts*)
-
-  def df()(using config: Config) =
-    exec("df", config.hosts*)
-
-  def stats()(using config: Config) =
-    exec("docker stats --no-stream --no-trunc", config.hosts*)
-
-  def ls()(using config: Config) =
-    exec(clusterCmd("ls"), config.hostMain)
-
-  def service(args: Seq[String])(using config: Config) =
-    exec(s"docker service ${args.mkString(" ")}", config.hostMain)
-
-  def docker(args: Seq[String])(using config: Config) =
-    exec(s"docker ${args.mkString(" ")}", config.hosts*)
-
-  def rm(stack: String)(using config: Config) =
-    exec(clusterCmd(s"rm $stack"), config.hostMain)
-
-  def ps(service: String)(using config: Config) =
-    exec(clusterCmd(s"ps $service"), config.hostMain)
-
-  def stop(service: String)(using config: Config) =
-    exec(clusterCmd(s"stop ${service} | grep Running"), config.hostMain)
-
-  def update(stack: String, service: String)(using config: Config) =
-    exec(s"docker service update --force ${stack}_${service}", config.hostMain)
-
-  def prune()(using config: Config) =
-    exec("docker system prune -a", config.hosts*)
-
-  def deploy(service: String)(using config: Config) =
-    exec(clusterCmd(s"deploy $service"), config.hostMain)
-
-  def getlogs(service: String)(using config: Config) =
-    val analyzer: Seq[String] => Unit = {
+  private def runEach(cmd: String, host: String, analyzer: Option[Analyzer] = None): IOResult =
+    Ssh.connectAndExec(cmd, host):
       lines =>
-        lines.lastOption match
-          case None => println("can't get log lines")
-          case Some(lastLine) =>
-            if lastLine.contains("DONE! save log at")
-            then
-              lastLine.split("logs/").lastOption match
-                case Some(logname) =>
-                  //println(s"logname = ${logname}")
-                  val path = s"${config.logsPath}/${logname.trim}"
-                  //println(s"save at = ${path}")
-                  val scp = Seq(
-                    "scp",
-                    "-i",
-                    config.keyIdentity,
-                    s"${config.username}@${config.hostMain}.${config.domain}:~/cluster/logs/${logname.trim}",
-                    path)
-                  val result = scp ! ProcessLogger(s => println(s"SCP: ${s}"))
-                  if result == 0
-                  then println(s"log saved at ${path}")
-                  else println("can't save log")
-                case _ => println("can't get log name")
+        analyzer match
+          case Some(f) => f(lines)
+          case None =>
+            sayOk(lines.mkString("\n"))
 
-    }
-    exec(clusterCmd(s"getlogs ${service}"), Some(analyzer), config.hostMain)
-
-  def exec(cmd: String, hosts: String*)(using Config): Unit =
-    exec(cmd, None, hosts*)
-
-  def exec(cmd: String, analyzer: Option[Seq[String] => Unit], hosts: String*)(using config: Config): Unit =
-    val jssh = ssh.create()
-
-    for host <- hosts do
-
-      println(s"... connect $host")
-
-      val session = jssh.getSession(
-        config.username, s"$host.${config.domain}", config.port)
-      session.connect()
-
-      val channel = session.openChannel("exec")
-      channel.asInstanceOf[ChannelExec].setCommand(cmd)
-      channel.asInstanceOf[ChannelExec].setErrStream(System.err)
-      channel.setOutputStream(System.out)
-      channel.setInputStream(null)
-
-      val in = channel.getInputStream
-
-      channel.connect()
-
-      val source = Source.fromInputStream(in)
-
-      try
-        val lines = source.getLines().toSeq
-        lines.foreach(println)
-        analyzer.foreach(f => f(lines))
-        if channel.getExitStatus > 0
-        then println(s"... exit-status: ${channel.getExitStatus}")
-      finally
-        source.close()
-        channel.disconnect()
-        session.disconnect()
-
-      println(s"... disconnect $host")
-
-
-*/
+  def logAnalyzer(lines: Seq[String]): IOResult =
+    lines.lastOption match
+      case None => sayError("can't get log lines")
+      case Some(lastLine) =>
+        if lastLine.contains("DONE! save log at")
+        then
+          lastLine.split("logs/").lastOption match
+            case Some(filename) => scpLog(filename.trim)
+            case _ => sayError("can't get log name")
+        else sayError("can't get log from server response")    
+            
+  def scpLog(filename: String) : IOResult =
+    val cfg = summon[Config]
+    val to = s"${cfg.logsPath}/${filename}"
+    val from = s"${cfg.username}@${cfg.hostMain}.${cfg.domain}:~/cluster/logs/${filename}"
+    val scp = Seq("scp", "-i", cfg.keyIdentity, from, to)
+    IO.blocking:
+      scp ! ProcessLogger(s => println(s"SCP: $s"))
+    .flatMap:
+      code =>
+        if code != 0
+        then sayError("can't save log")
+        else sayOk(s"log saved at $to")

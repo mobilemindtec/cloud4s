@@ -8,7 +8,7 @@ import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import java.time.Duration
 import java.util.Base64
 
-trait Auth
+sealed trait Auth
 
 case class AuthBasic(username: String, password: String) extends Auth:
 
@@ -39,8 +39,8 @@ case class Http(url: String,
         .newBuilder()
         .uri(URI.create(url))
         .timeout(Duration.ofMillis(timeout))
-    auth match
-      case Some(basic: AuthBasic) =>
+    auth.foreach:
+      case basic: AuthBasic =>
         builder.header("Authorization", s"Basic ${basic.encode()}")
 
     builder.build()

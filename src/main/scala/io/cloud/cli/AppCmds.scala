@@ -10,26 +10,32 @@ object AppCmds:
   trait Cmd:
     def cmd: String
 
+
+  def runOnCluster(cmd: String) = s"cd ./cluster && ./docker $cmd"
+
   case class StackDeploy(stack: String) extends Cmd:
-    def cmd = s"deploy $stack}"
+    def cmd = runOnCluster(s"deploy $stack")
 
   case class ServiceUpdate(stack: String, service: String) extends Cmd:
-    def cmd = s"docker service update --force ${stack}_${service}"
+    def cmd = s"docker service update --force ${stack}_$service"
 
-  case class ServicePS(service: String) extends Cmd:
-    def cmd = s"ps $service"
+  case class ServicePS(service: String, running: Boolean) extends Cmd:
+    def cmd =
+      if running
+      then runOnCluster(s"ps $service | grep Running")
+      else runOnCluster(s"ps $service")
 
-  case class ServiceRemove(service: String) extends Cmd:
-    def cmd = s"stop $service"
+  case class ServiceStop(service: String) extends Cmd:
+    def cmd = runOnCluster(s"stop $service")
 
   case class ServiceList()extends Cmd:
-    def cmd = s"ls"
+    def cmd = runOnCluster("ls")
 
   case class ServiceGetLogs(service: String)extends Cmd:
-    def cmd = s"getlogs $service"
+    def cmd = runOnCluster(s"getlogs $service")
 
   case class StackRemove(stack: String)extends Cmd:
-    def cmd = s"rm $stack"
+    def cmd = runOnCluster(s"rm $stack")
 
   case class DockerPrune() extends Cmd:
     def cmd = "docker system prune -a -f"
@@ -39,9 +45,6 @@ object AppCmds:
 
   case class DockerDF() extends Cmd:
     def cmd = "docker df"
-
-  case class ServiceStop(service: String) extends Cmd:
-    def cmd = s"stop $service}"
 
   case class DockerStats() extends Cmd:
     def cmd = "docker stats --no-stream --no-trunc"
@@ -134,9 +137,9 @@ object AppCmds:
       Opts.argument[String](metavar = "stack name").map(StackRemove.apply)
     }
 
-  val serviceRemove: Opts[ServiceRemove] =
+  val serviceStop: Opts[ServiceStop] =
     Opts.subcommand("stop", "Swarm service remove") {
-      Opts.argument[String](metavar = "service name").map(ServiceRemove.apply)
+      Opts.argument[String](metavar = "service name").map(ServiceStop.apply)
     }
 
   val serviceUpdate: Opts[ServiceUpdate] =
@@ -147,7 +150,9 @@ object AppCmds:
 
   val servicePS: Opts[ServicePS] =
     Opts.subcommand("ps", "Swarm show service info") {
-      Opts.argument[String](metavar = "service name").map(ServicePS.apply)
+      (Opts.argument[String](metavar = "service name"),
+        Opts.flag("running", "filter by running services").orFalse
+      ).mapN(ServicePS.apply)
     }
 
   val serviceLS: Opts[ServiceList] =
@@ -155,10 +160,11 @@ object AppCmds:
       Opts(ServiceList())
     }
 
-  val serviceRM: Opts[ServiceStop] =
-    Opts.subcommand("ls", "Swarm stop service") {
-      Opts.argument[String](metavar = "service name").map(ServiceStop.apply)
-    }
+
+  //val serviceRM: Opts[ServiceStop] =
+  //  Opts.subcommand("stop", "Swarm stop service") {
+  //    Opts.argument[String](metavar = "service name").map(ServiceStop.apply)
+  //  }
 
   val serviceGetLogs: Opts[ServiceGetLogs] =
     Opts.subcommand("get-logs", "Swarm get service logs") {
@@ -166,33 +172,32 @@ object AppCmds:
     }
 
   val dockerPrune: Opts[DockerPrune] =
-    Opts.subcommand("prune", "Docker remove unused data") {
+    Opts.subcommand("docker-prune", "Docker remove unused data") {
       Opts(DockerPrune())
     }
 
   val dockerPS: Opts[DockerPS] =
-    Opts.subcommand("ps", "Docker lists containers") {
+    Opts.subcommand("docker-ps", "Docker lists containers") {
       Opts(DockerPS())
     }
 
   val dockerDF: Opts[DockerDF] =
-    Opts.subcommand("df", "Docker file system space usage") {
+    Opts.subcommand("docker-df", "Docker file system space usage") {
       Opts(DockerDF())
     }
 
   val dockerStats: Opts[DockerStats] =
-    Opts.subcommand("stats", "Docker containers resource usage statistics") {
+    Opts.subcommand("docker-stats", "Docker containers resource usage statistics") {
       Opts(DockerStats())
     }
 
   val cmds = (
     stackDeploy
       orElse stackRemove
-      orElse serviceRemove
+      orElse serviceStop
       orElse serviceUpdate
       orElse servicePS
       orElse serviceLS
-      orElse serviceRM
       orElse serviceGetLogs
       orElse dockerPrune
       orElse dockerPS

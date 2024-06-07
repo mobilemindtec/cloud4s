@@ -5,9 +5,6 @@ import java.io.File
 import scala.language.postfixOps
 import scala.sys.process.*
 
-
-
-
 val scala3Version = "3.5.0-RC1"
 
 lazy val nativeCompile = inputKey[Unit]("Create native image")
@@ -21,7 +18,7 @@ lazy val root = project
     version := "0.1.0",
 
     scalaVersion := scala3Version,
-    organization     := "br.com.mobilemind.infra.cli",
+    organization     := "io.cloud.cli",
 
     libraryDependencies ++= Seq(
       ///"ch.qos.logback" % "logback-classic" % "1.5.3",
@@ -40,7 +37,7 @@ lazy val root = project
       val shell: Seq[String] = if (sys.props("os.name").contains("Windows")) Seq("cmd", "/c") else Seq("bash", "-c")
       val cmd = shell ++ Seq(
         "java",
-        s"-agentlib:native-image-agent=config-output-dir=./src/main/resources/META-INF/native-image/${organization.value}/${name.value}",
+        s"-agentlib:native-image-agent=config-output-dir=./src/main/resources/META-INF/native-image/${organization.value}",
         "-jar",
         target.getAbsolutePath
       )
@@ -56,7 +53,7 @@ lazy val root = project
       val logger: TaskStreams = streams.value
       val targetName = s"${name.value}-assembly-${version.value}.jar"
       val target = new File(new File("target", s"scala-${scalaVersion.value}"), targetName)
-      val executable = s"./target/scala-${scalaVersion.value}/${name.value}"
+      val executable = s"./target/${name.value}"
       if(!target.exists()) {
         logger.log.error("target not found. do you assembly?")
       }else {

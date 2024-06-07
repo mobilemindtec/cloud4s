@@ -1,4 +1,0 @@
-#!/bin/bash
-
-
-cp ./target/scala-3.4.1/infra-cli /usr/bin
