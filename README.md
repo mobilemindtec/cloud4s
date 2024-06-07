@@ -45,26 +45,47 @@ codebuild.password=
 
 ```
 
-# Options
+# Usage
 
 ```shell
-  use options:
-  > deploy <service name>
-  > update <stack name> <service name>
-  > prune
-  > ps
-  > ps <service name>
-  > ls
-  > stop <service name>
-  > rm <stack name>
-  > stats
-  > service <cmd args>
-  > docker <cmd args>
-  > get-logs <service name>
-  > increment-version <service name>
-  > codebuild start <project name>
-  > codebuild status <project name>
-  > codebuild info <project name>
-  > codebuild list
 
+Usage:
+    cloud deploy
+    cloud rm
+    cloud stop
+    cloud update
+    cloud ps
+    cloud ls
+    cloud get-logs
+    cloud docker-prune
+    cloud docker-ps
+    cloud docker-df
+    cloud docker-stats
+    cloud cb
+
+Subcommands:
+    deploy
+        Swarm stack deploy
+    rm
+        Swarm stack remove
+    stop
+        Swarm service remove
+    update
+        Swarm force service update
+    ps
+        Swarm show service info
+    ls
+        Swarm list all services
+    get-logs
+        Swarm get service logs
+    docker-prune
+        Docker remove unused data
+    docker-ps
+        Docker lists containers
+    docker-df
+        Docker file system space usage
+    docker-stats
+        Docker containers resource usage statistics
+    cb
+        CodeBuild actions
 ```
