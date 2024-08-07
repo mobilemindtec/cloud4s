@@ -5,7 +5,7 @@ import java.io.File
 import scala.language.postfixOps
 import scala.sys.process.*
 
-val scala3Version = "3.5.0-RC1"
+val scala3Version = "3.5.0-RC5"
 
 lazy val nativeCompile = inputKey[Unit]("Create native image")
 lazy val nativeConfig = inputKey[Unit]("Create configs to native image")
@@ -61,7 +61,7 @@ lazy val root = project
         //val shell: Seq[String] = if (sys.props("os.name").contains("Windows")) Seq("cmd", "/c") else Seq("bash", "-c")
         val cmd = Seq(
           "native-image",
-          "--static",
+          //"--static",
           "--verbose",
           "--allow-incomplete-classpath",
           "--report-unsupported-elements-at-runtime",

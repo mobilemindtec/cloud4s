@@ -112,7 +112,7 @@ object codebuild:
               val filterCmd = "jq '.builds[].phases[] | select (.phaseType==\"BUILD\") | .phaseStatus'"
               (cmd #| filterCmd) !!
             .flatMap:
-              r => sayOk(s"build status: ${if r == "null" then "BUILDING" else r}")
+              r => sayOk(s"build status: ${if r == "null" || r.isEmpty then "BUILDING" else r}")
 
   def info(cb: CodeBuildInfo): IOResult =
     getBuildId(CodeBuildShowBuildId(cb.projectName))
