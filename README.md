@@ -4,6 +4,12 @@ Infra CLI
 
 CLI server manager
 
+### Requirements
+
+* https://jqlang.github.io/jq
+* https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+* Need ssh key file in old style. See https://stackoverflow.com/questions/53134212/invalid-privatekey-when-using-jsch
+
 ## Create Graalvm configs 
 
 ```shell
